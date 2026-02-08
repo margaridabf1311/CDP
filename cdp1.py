@@ -87,12 +87,94 @@ def christofides(coords):
     return total_dist
 
 
-coords0 = coordenadas_instancia(df.loc[1294])
+
+def nearest_insertion(coords):
+    n = len(coords)
+    
+    route = [0, 1]
+    visited = set(route)
+    
+    while len(route) < n:
+        min_dist = np.inf
+        next_city = None
+        insert_pos = None
+        
+        for city in range(n):
+            if city in visited:
+                continue
+            dists_to_tour = [np.linalg.norm(coords[city] - coords[r]) for r in route]
+            closest_dist = min(dists_to_tour)
+            if closest_dist < min_dist:
+                min_dist = closest_dist
+                next_city = city
+        
+        best_increase = np.inf
+        for i in range(len(route)):
+            a = route[i]
+            b = route[(i+1) % len(route)] 
+            increase = (np.linalg.norm(coords[a] - coords[next_city]) +
+                        np.linalg.norm(coords[next_city] - coords[b]) -
+                        np.linalg.norm(coords[a] - coords[b]))
+            if increase < best_increase:
+                best_increase = increase
+                best_pos = i + 1
+        
+        route.insert(best_pos, next_city)
+        visited.add(next_city)
+
+    route.append(route[0])
+
+    total_dist = sum(np.linalg.norm(coords[route[i]] - coords[route[i+1]]) for i in range(len(route)-1))
+    
+    return total_dist
+
+import numpy as np
+import random
+
+def random_insertion(coords):
+    n = len(coords)
+    
+    route = random.sample(range(n), 2)
+    visited = set(route)
+    
+    while len(route) < n:
+        remaining = [c for c in range(n) if c not in visited]
+        next_city = random.choice(remaining)
+        
+        best_increase = np.inf
+        best_pos = None
+        for i in range(len(route)):
+            a = route[i]
+            b = route[(i+1) % len(route)]
+            increase = (np.linalg.norm(coords[a] - coords[next_city]) +
+                        np.linalg.norm(coords[next_city] - coords[b]) -
+                        np.linalg.norm(coords[a] - coords[b]))
+            if increase < best_increase:
+                best_increase = increase
+                best_pos = i + 1
+        
+        route.insert(best_pos, next_city)
+        visited.add(next_city)
+    
+    route.append(route[0])
+    
+    total_dist = sum(np.linalg.norm(coords[route[i]] - coords[route[i+1]]) for i in range(len(route)-1))
+    
+    return total_dist
+
+
+
+
+coords0 = coordenadas_instancia(df.loc[1964])
 
 distanciavmp = vizinho_mais_proximo(coords0)
 print("Distância 1:", distanciavmp)
 distanciac = christofides(coords0)
 print("Distância 2:", distanciac)
+distanciani = nearest_insertion(coords0)
+print("Distância 3:", distanciani)
+distanciari = random_insertion(coords0)
+print("Distância 4:", distanciari)
 
 
 
