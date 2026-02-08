@@ -177,4 +177,31 @@ distanciari = random_insertion(coords0)
 print("Distância 4:", distanciari)
 
 
+sample_df = df.sample(10, random_state=42)
+results = []
+for idx, row in sample_df.iterrows():
+    coords = coordenadas_instancia(row)
+    dist_vmp = vizinho_mais_proximo(coords)
+    dist_chris = christofides(coords)
+    dist_ni = nearest_insertion(coords)
+    dist_ri = random_insertion(coords)
+    
+    dist_dict = {'vizinho_mais_proximo': dist_vmp,
+                 "christofides":dist_chris,
+                 'nearest_insertion': dist_ni,
+                 'random_insertion': dist_ri}
+    best = min(dist_dict, key=dist_dict.get)
+
+    results.append({
+        'instance_id': row['instance_id'],
+        'num_cities': row['num_cities'],
+        'best_heuristic': best
+    })
+
+
+df_results = pd.DataFrame(results)
+df_results.to_csv("tsp_heuristics_results.csv", index=False)
+print("Resultados guardados em 'tsp_heuristics_results.csv'")
+
+
 
