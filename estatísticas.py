@@ -13,31 +13,31 @@ df_ml=pd.read_csv("tsp_features_heuristics_results.csv")
 print("\nResumo estatístico das features:\n")
 print(df_ml.describe())
 
-# Distribuição da variável alvo
+
 plt.figure(figsize=(6,4))
 sns.countplot(data=df_ml, x='best_heuristic', order=df_ml['best_heuristic'].value_counts().index)
 plt.title("Distribuição da melhor heurística")
 plt.show()
 
-# Boxplots para algumas features principais
+
 features_to_plot = ['num_cities', 'hull_area_ratio', 'mst_ratio', 'coord_spread_ratio']
 plt.figure(figsize=(12,6))
 sns.boxplot(data=df_ml[features_to_plot])
 plt.title("Boxplots das features selecionadas")
 plt.show()
 
-# --- 3️⃣ Análise de outliers (Z-score) ---
+
 numeric_cols = df_ml.select_dtypes(include=np.number).columns.tolist()
 z_scores = np.abs(zscore(df_ml[numeric_cols]))
 outliers = (z_scores > 3).sum(axis=0)
 print("\nNúmero de outliers por feature (Z>3):\n", outliers)
 
-# --- 4️⃣ Encoding da variável alvo ---
+
 le = LabelEncoder()
 df_ml['best_heuristic_encoded'] = le.fit_transform(df_ml['best_heuristic'])
 print("\nEncoding das heurísticas:", dict(zip(le.classes_, le.transform(le.classes_))))
 
-# --- 5️⃣ PCA para exploração visual ---
+
 X_numeric = df_ml[numeric_cols].copy()
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X_numeric)
@@ -53,7 +53,6 @@ sns.scatterplot(data=df_ml, x='PCA1', y='PCA2', hue='best_heuristic', palette='t
 plt.title("PCA das features colorido pela melhor heurística")
 plt.show()
 
-# --- 6️⃣ Clustering para explorar grupos ---
 kmeans = KMeans(n_clusters=4, random_state=42)
 df_ml['cluster'] = kmeans.fit_predict(X_scaled)
 
