@@ -6,6 +6,7 @@ from scipy.spatial import ConvexHull, KDTree
 from scipy.spatial.distance import pdist, squareform
 import ast
 
+
 df = pd.read_csv("tsp_dataset.csv")
 
 
@@ -195,9 +196,9 @@ for idx, row in sample_df.iterrows():
         'best_heuristic': best
     })
 
-df_results = pd.DataFrame(results)
-df_results.to_csv("tsp_heuristics_results.csv", index=False)
-print("Resultados guardados em 'tsp_heuristics_results.csv'")
+#df_results = pd.DataFrame(results)
+#df_results.to_csv("tsp_heuristics_results.csv", index=False)
+#print("Resultados guardados em 'tsp_heuristics_results.csv'")
 
 
 def extractfeatures(coords, distance_matrix=None):
@@ -471,6 +472,9 @@ sample_df = df.sample(2226, random_state=42)
 
 df_ml = build_feature_dataset(sample_df)
 
+
 df_ml.to_csv("tsp_features_heuristics_results.csv", index=False)
 
 print("CSV guardado em 'tsp_features_heuristics_results.csv'") 
+
+
