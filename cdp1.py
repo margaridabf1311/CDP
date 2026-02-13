@@ -42,51 +42,6 @@ def distancia_euclideana(a, b):
     return np.linalg.norm(a - b)
 
 
-def christofides(coords):
-    n = len(coords)
-
-    G = nx.Graph()
-    for i in range(n):
-        for j in range(i + 1, n):
-            dist = distancia_euclideana(coords[i], coords[j])
-            G.add_edge(i, j, weight=dist)
-
-    AGM = nx.minimum_spanning_tree(G)
-    odd_nodes = [v for v, d in AGM.degree() if d % 2 == 1]
-
-    odd_graph = nx.Graph()
-    for u, v in combinations(odd_nodes, 2):
-        odd_graph.add_edge(u, v, weight=distancia_euclideana(coords[u], coords[v]))
-
-    matching = nx.algorithms.matching.min_weight_matching(odd_graph)
-    multi_graph = nx.MultiGraph(AGM)
-    multi_graph.add_edges_from(matching)
-    odd_left = [v for v, d in multi_graph.degree() if d % 2 == 1]
-
-    while odd_left:
-        u = odd_left.pop()
-        v = min(odd_left, key=lambda x: distancia_euclideana(coords[u], coords[x]))
-        multi_graph.add_edge(u, v, weight=distancia_euclideana(coords[u], coords[v]))
-        odd_left.remove(v)
-
-    euler_circuit = list(nx.eulerian_circuit(multi_graph))
-    visited = set()
-    route = []
-    for u, v in euler_circuit:
-        if u not in visited:
-            route.append(u)
-            visited.add(u)
-        if v not in visited:
-            route.append(v)
-            visited.add(v)
-
-    route.append(route[0])
-
-    total_dist = sum(distancia_euclideana(coords[route[i]], coords[route[i + 1]]) for i in range(len(route) - 1))
-
-    return total_dist
-
-
 def nearest_insertion(coords):
     n = len(coords)
 
@@ -132,62 +87,23 @@ import numpy as np
 import random
 
 
-def random_insertion(coords):
-    n = len(coords)
-
-    route = random.sample(range(n), 2)
-    visited = set(route)
-
-    while len(route) < n:
-        remaining = [c for c in range(n) if c not in visited]
-        next_city = random.choice(remaining)
-
-        best_increase = np.inf
-        best_pos = None
-        for i in range(len(route)):
-            a = route[i]
-            b = route[(i + 1) % len(route)]
-            increase = (np.linalg.norm(coords[a] - coords[next_city]) +
-                        np.linalg.norm(coords[next_city] - coords[b]) -
-                        np.linalg.norm(coords[a] - coords[b]))
-            if increase < best_increase:
-                best_increase = increase
-                best_pos = i + 1
-
-        route.insert(best_pos, next_city)
-        visited.add(next_city)
-
-    route.append(route[0])
-
-    total_dist = sum(np.linalg.norm(coords[route[i]] - coords[route[i + 1]]) for i in range(len(route) - 1))
-
-    return total_dist
-
-
 coords0 = coordenadas_instancia(df.loc[1964])
 
 distanciavmp = vizinho_mais_proximo(coords0)
 print("Distância 1:", distanciavmp)
-distanciac = christofides(coords0)
-print("Distância 2:", distanciac)
 distanciani = nearest_insertion(coords0)
 print("Distância 3:", distanciani)
-distanciari = random_insertion(coords0)
-print("Distância 4:", distanciari)
 
-sample_df = df.sample(10, random_state=42)
+
+sample_df = df.sample(50, random_state=42)
 results = []
 for idx, row in sample_df.iterrows():
     coords = coordenadas_instancia(row)
     dist_vmp = vizinho_mais_proximo(coords)
-    dist_chris = christofides(coords)
     dist_ni = nearest_insertion(coords)
-    dist_ri = random_insertion(coords)
 
     dist_dict = {'vizinho_mais_proximo': dist_vmp,
-                 "christofides": dist_chris,
-                 'nearest_insertion': dist_ni,
-                 'random_insertion': dist_ri}
+                 'nearest_insertion': dist_ni}
     best = min(dist_dict, key=dist_dict.get)
 
     results.append({
@@ -196,9 +112,9 @@ for idx, row in sample_df.iterrows():
         'best_heuristic': best
     })
 
-#df_results = pd.DataFrame(results)
-#df_results.to_csv("tsp_heuristics_results.csv", index=False)
-#print("Resultados guardados em 'tsp_heuristics_results.csv'")
+df_results = pd.DataFrame(results)
+df_results.to_csv("tsp_heuristics_results.csv", index=False)
+print("Resultados guardados em 'tsp_heuristics_results.csv'")
 
 
 def extractfeatures(coords, distance_matrix=None):
@@ -437,15 +353,12 @@ def extract_X_y_from_instance(row):
     coords = coordenadas_instancia(row)
 
     dist_vmp = vizinho_mais_proximo(coords)
-    dist_chris = christofides(coords)
     dist_ni = nearest_insertion(coords)
-    dist_ri = random_insertion(coords)
+
 
     dist_dict = {
         'vizinho_mais_proximo': dist_vmp,
-        'christofides': dist_chris,
-        'nearest_insertion': dist_ni,
-        'random_insertion': dist_ri
+        'nearest_insertion': dist_ni
     }
 
     y = min(dist_dict, key=dist_dict.get)
@@ -468,7 +381,7 @@ def build_feature_dataset(df):
 
     return pd.DataFrame(rows)
 
-sample_df = df.sample(2226, random_state=42)
+sample_df = df.head(2226)
 
 df_ml = build_feature_dataset(sample_df)
 
