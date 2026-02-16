@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import IsolationForest
+import seaborn as sns
 
 
 logon_df = pd.read_csv('logon.csv')       
@@ -99,6 +99,14 @@ print(desc_stats)
 
 desc_stats.to_csv("estatisticas_descritivas.csv")
 
+corr_matrix = numeric_cols.corr()
+print(corr_matrix)
+
+plt.figure(figsize=(12,10))
+sns.heatmap(corr_matrix, annot=True, fmt=".2f", cmap='coolwarm')
+plt.title("Matriz de Correlação das Features")
+plt.show()
+
 #CLUSTERING
 
 from sklearn.preprocessing import StandardScaler
@@ -157,7 +165,7 @@ pca_df = pd.DataFrame({
 })
 
 var_ratio = pca.explained_variance_ratio_
-print(f"\n   ✅ Variância explicada:")
+print(f"\n  Variância explicada:")
 print(f"      PC1: {var_ratio[0]:.1%}")
 print(f"      PC2: {var_ratio[1]:.1%}")
 print(f"      Total: {var_ratio[0]+var_ratio[1]:.1%} da variância explicada")
@@ -187,24 +195,3 @@ plt.tight_layout()
 plt.savefig('pca_clusters.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-
-
-"""
-features['outlier'] = 0
-for c in features['cluster'].unique():
-    idx = features['cluster'] == c
-    X_cluster = numeric_cols.loc[idx]
-    X_cluster_scaled = scaler.fit_transform(X_cluster)
-    
-    iso = IsolationForest(contamination=0.05, random_state=42)
-    preds = iso.fit_predict(X_cluster_scaled)
-    features.loc[idx, 'outlier'] = preds
-
-features['suspect'] = (features['outlier'] == -1).astype(int)
-print(features['suspect'].value_counts())
-
-features.to_csv("insider_threat_final.csv")
-
-suspects = features[features['suspect'] == 1]
-print(suspects.sort_values(by=['files_per_logon', 'pc_logins_night'], ascending=False))
-"""
