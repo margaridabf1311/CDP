@@ -59,27 +59,35 @@ pc_features['pc_logins_night'] = pc_features['pc_logins_night'].fillna(0)
 device_features = device_df.groupby(['user', 'activity']).size().unstack(fill_value=0)
 device_features.columns = [f'device_{col.lower()}' for col in device_features.columns]
 
-
 email_df['attachments'] = email_df['attachments'].fillna(0)
 email_features = email_df.groupby('user').agg(
     num_emails=('id', 'count'),
-    num_emails_with_attachments=('attachments', 'sum')
 )
-email_features['ratio_emails_with_attachments'] = email_features['num_emails_with_attachments'] / (email_features['num_emails'] + 1)
-
 
 if 'size' not in file_df.columns:
     file_df['size'] = file_df['content'].apply(lambda x: len(str(x)))
 file_df['size'] = file_df['size'].fillna(0)
 file_features = file_df.groupby('user').agg(
-    num_files_downloaded=('id', 'count'),
-        total_file_size=('size', 'sum')
+        total_file_size=('size', 'sum'),
+    num_files_downloaded=('id', 'count')
 )
 file_features['files_per_logon'] = file_features['num_files_downloaded'] / (pc_features.get('pc_logon', pd.Series(1)) + 1)
 
 features = pc_features.join(device_features, how='left').fillna(0)
 features = features.join(email_features, how='left').fillna(0)
 features = features.join(file_features, how='left').fillna(0)
+
+
+#FEATURES NOVAS
+device_cols = [col for col in features.columns if col.startswith('device_')]
+features['device_activity_per_logon'] = features[device_cols].sum(axis=1) / (features.get('pc_logon', 1) + 1)
+
+features['files_per_logon'] = features['num_files_downloaded'] / (features.get('pc_logon', 1) + 1)
+features['emails_night_ratio'] = features['num_emails'] / (features.get('pc_logins_night', 1) + 1)
+device_cols = [col for col in features.columns if col.startswith('device_')]
+features['files_per_device_activity'] = features['num_files_downloaded'] / (features[device_cols].sum(axis=1) + 1)
+
+
 
 features = features.fillna(0)
 
@@ -109,7 +117,6 @@ plt.title("Matriz de Correlação das Features")
 plt.show()
 
 #CLUSTERING
-
 from sklearn.preprocessing import StandardScaler
 
 scaler = StandardScaler()
@@ -156,6 +163,12 @@ print("Melhor k (silhouette):", best_k)
 
 
 kmeans = KMeans(n_clusters=best_k, random_state=42)
+
+from sklearn.metrics import adjusted_rand_score
+
+# dividir dados
+X_train_u, X_test_u = train_test_split(X_scaled, test_size=0.2, random_state=42)
+
 clusters = kmeans.fit_predict(X_scaled)
 
 features['cluster'] = clusters
