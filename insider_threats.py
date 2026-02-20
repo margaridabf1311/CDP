@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import seaborn as sns
+from sklearn.model_selection import train_test_split
 
 
 logon_df = pd.read_csv('logon.csv')       
@@ -72,7 +73,7 @@ if 'size' not in file_df.columns:
 file_df['size'] = file_df['size'].fillna(0)
 file_features = file_df.groupby('user').agg(
     num_files_downloaded=('id', 'count'),
-    total_file_size=('size', 'sum')
+        total_file_size=('size', 'sum')
 )
 file_features['files_per_logon'] = file_features['num_files_downloaded'] / (pc_features.get('pc_logon', pd.Series(1)) + 1)
 
@@ -134,15 +135,30 @@ for k in K_range:
     
     print(f"Inércia: {kmeans.inertia_:.0f}, Silhueta: {sil_score:.3f}")
 
-#FALTA ESCOLHER O NUMERO DE CLUSTERS!!!
+plt.figure(figsize=(10,5))
+plt.plot(K_range, inertias, marker='o')
+plt.title("Elbow Method")
+plt.xlabel("Número de clusters")
+plt.ylabel("Inércia")
+plt.grid(True)
+plt.show()
+
+plt.figure(figsize=(10,5))
+plt.plot(K_range, silhouette_scores, marker='o')
+plt.title("Silhouette Score vs K")
+plt.xlabel("Número de clusters")
+plt.ylabel("Silhouette score")
+plt.grid(True)
+plt.show()
+
+best_k = K_range[np.argmax(silhouette_scores)]
+print("Melhor k (silhouette):", best_k)
 
 
-kmeans = KMeans(n_clusters=3, random_state=42)
+kmeans = KMeans(n_clusters=best_k, random_state=42)
 clusters = kmeans.fit_predict(X_scaled)
 
 features['cluster'] = clusters
-
-print(features['cluster'].value_counts())
 
 cluster_summary = numeric_cols.groupby(clusters).mean().round(2)
 cluster_summary['contagem'] = features.groupby('cluster').size()
@@ -151,7 +167,6 @@ print(cluster_summary)
 features.to_csv("insider_threat_clusters.csv")
 
 #CLUSTERS COM PCA
-
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
@@ -160,38 +175,13 @@ X_pca = pca.fit_transform(X_scaled)
 pca_df = pd.DataFrame({
     'PC1': X_pca[:, 0],
     'PC2': X_pca[:, 1],
-    'cluster': clusters,
+    'cluster': features['cluster'],
     'user': features.index
 })
 
-var_ratio = pca.explained_variance_ratio_
-print(f"\n  Variância explicada:")
-print(f"      PC1: {var_ratio[0]:.1%}")
-print(f"      PC2: {var_ratio[1]:.1%}")
-print(f"      Total: {var_ratio[0]+var_ratio[1]:.1%} da variância explicada")
-
-plt.figure(figsize=(12, 8))
-
-cores = ['blue', 'green', 'red']
-nomes_clusters = ['Cluster 0', 'Cluster 1', 'Cluster 2']
-
-for cluster in range(3):
-    mask = pca_df['cluster'] == cluster
-    plt.scatter(pca_df.loc[mask, 'PC1'], 
-                pca_df.loc[mask, 'PC2'],
-                c=cores[cluster], 
-                label=nomes_clusters[cluster],
-                alpha=0.6, 
-                edgecolors='black', 
-                linewidth=0.5,
-                s=100)
-
-plt.xlabel(f'PC1 ({var_ratio[0]:.1%} variância)', fontsize=12)
-plt.ylabel(f'PC2 ({var_ratio[1]:.1%} variância)', fontsize=12)
-plt.title('Visualização dos Clusters com PCA', fontsize=16)
-plt.legend()
-plt.grid(True, alpha=0.3)
+plt.figure(figsize=(10,8))
+sns.scatterplot(data=pca_df, x='PC1', y='PC2', hue='cluster', palette='tab10')
+plt.title('Clusters (PCA)')
 plt.tight_layout()
-plt.savefig('pca_clusters.png', dpi=300, bbox_inches='tight')
+plt.savefig('pca_clusters.png', dpi=300)
 plt.show()
-
