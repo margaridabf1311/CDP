@@ -5,6 +5,8 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import seaborn as sns
 from sklearn.model_selection import train_test_split
+from imblearn.over_sampling import SMOTE
+from sklearn.datasets import make_classification
 
 
 logon_df = pd.read_csv('logon.csv')       
@@ -119,8 +121,15 @@ plt.show()
 #CLUSTERING
 from sklearn.preprocessing import StandardScaler
 
+from sklearn.model_selection import train_test_split
+
+X = numeric_cols.copy()
+
+X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
 scaler = StandardScaler()
-X_scaled = scaler.fit_transform(numeric_cols)
+
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
 K_range = range(2, 11)  # Testar de 2 a 10 clusters
 inertias = []
@@ -129,18 +138,17 @@ silhouette_scores = []
 from sklearn.metrics import silhouette_score
 
 for k in K_range:
-    print(f"   Testando k={k}...", end=" ")
-    
-    # Aplicar K-means
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-    labels = kmeans.fit_predict(X_scaled)
-    
-    # Calcular métricas
-    inertias.append(kmeans.inertia_)
-    sil_score = silhouette_score(X_scaled, labels)
-    silhouette_scores.append(sil_score)
-    
-    print(f"Inércia: {kmeans.inertia_:.0f}, Silhueta: {sil_score:.3f}")
+    try:
+        labels = kmeans.fit_predict(X_train_scaled)
+        inertias.append(kmeans.inertia_)
+        sil_score = silhouette_score(X_train_scaled, labels)
+        silhouette_scores.append(sil_score)
+        print(f"k={k}: Inércia={kmeans.inertia_:.0f}, Silhueta={sil_score:.3f}")
+    except ValueError as e:
+        print(f"Erro ao calcular k={k}: {e}")
+        inertias.append(np.nan)
+        silhouette_scores.append(np.nan)
 
 plt.figure(figsize=(10,5))
 plt.plot(K_range, inertias, marker='o')
@@ -163,38 +171,110 @@ print("Melhor k (silhouette):", best_k)
 
 
 kmeans = KMeans(n_clusters=best_k, random_state=42)
+cluster_train = kmeans.fit_predict(X_train_scaled)
+cluster_test = kmeans.predict(X_test_scaled)
 
-from sklearn.metrics import adjusted_rand_score
+smote = SMOTE(random_state=42)
+X_train_res, y_train_res = smote.fit_resample(X_train_scaled, cluster_train)
 
-# dividir dados
-X_train_u, X_test_u = train_test_split(X_scaled, test_size=0.2, random_state=42)
 
-clusters = kmeans.fit_predict(X_scaled)
+X_train_df = pd.DataFrame(X_train_scaled, columns=X_train.columns, index=X_train.index)
+X_train_df['cluster'] = cluster_train
 
-features['cluster'] = clusters
+X_test_df = pd.DataFrame(X_test_scaled, columns=X_test.columns, index=X_test.index)
+X_test_df['cluster'] = cluster_test
 
-cluster_summary = numeric_cols.groupby(clusters).mean().round(2)
-cluster_summary['contagem'] = features.groupby('cluster').size()
+y_test=cluster_test
+
+cluster_summary = X_train_df.groupby('cluster').mean()
+cluster_summary['contagem'] = X_train_df.groupby('cluster').size()
 print(cluster_summary)
-
-features.to_csv("insider_threat_clusters.csv")
 
 #CLUSTERS COM PCA
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
-X_pca = pca.fit_transform(X_scaled)
 
-pca_df = pd.DataFrame({
-    'PC1': X_pca[:, 0],
-    'PC2': X_pca[:, 1],
-    'cluster': features['cluster'],
-    'user': features.index
-})
+X_train_pca = pca.fit_transform(X_train_scaled)
+X_test_pca = pca.transform(X_test_scaled)
 
-plt.figure(figsize=(10,8))
-sns.scatterplot(data=pca_df, x='PC1', y='PC2', hue='cluster', palette='tab10')
-plt.title('Clusters (PCA)')
-plt.tight_layout()
-plt.savefig('pca_clusters.png', dpi=300)
-plt.show()
+#PARTE SUPERVISIONADA
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import cross_val_score
+
+
+models = {
+    'Random Forest': RandomForestClassifier(random_state=42, class_weight='balanced'),
+    'Logistic Regression': LogisticRegression(max_iter=1000, solver='lbfgs', class_weight='balanced'),
+    'SVM': SVC(kernel='rbf', random_state=42, class_weight='balanced'),
+    'Decision Tree': DecisionTreeClassifier(random_state=42, class_weight='balanced')
+}
+
+predictions = {}
+metrics_list = []
+
+for name, clf in models.items():
+    clf.fit(X_train_res, y_train_res)
+    y_pred = clf.predict(X_test_scaled)
+    predictions[name] = y_pred
+    
+    acc = accuracy_score(y_test, y_pred)
+    prec = precision_score(y_test, y_pred, average='macro', zero_division=0)
+    rec = recall_score(y_test, y_pred, average='macro', zero_division=0)
+    f1 = f1_score(y_test, y_pred, average='macro', zero_division=0)
+    
+    metrics_list.append({
+        'Modelo': name,
+        'Accuracy': round(acc, 3),
+        'Precision (macro)': round(prec, 3),
+        'Recall (macro)': round(rec, 3),
+        'F1-score (macro)': round(f1, 3)
+    })
+
+
+comparison_df = pd.DataFrame(metrics_list)
+print("=== Comparação dos Modelos com Teste Artificial ===")
+print(comparison_df)
+
+
+rf_clf = models['Random Forest']
+feat_imp = pd.Series(rf_clf.feature_importances_, index=X_train.columns)
+print("\nTop 10 features do Random Forest:")
+print(feat_imp.sort_values(ascending=False).head(10))
+
+
+# Random Forest
+rf_clf = RandomForestClassifier(random_state=42, class_weight='balanced')
+rf_clf.fit(X_train_res, y_train_res)
+y_pred_rf = rf_clf.predict(X_test_scaled)
+print("\n=== Random Forest ===")
+print(classification_report(y_test, y_pred_rf))
+print(confusion_matrix(y_test, y_pred_rf))
+
+# Logistic Regression
+lr = LogisticRegression(max_iter=1000, solver='lbfgs', class_weight='balanced')
+lr.fit(X_train_res, y_train_res)
+y_pred_lr = lr.predict(X_test_scaled)
+print("\n=== Logistic Regression ===")
+print(classification_report(y_test, y_pred_lr))
+
+# SVM
+svm_clf = SVC(kernel='rbf', random_state=42, class_weight='balanced')
+svm_clf.fit(X_train_res, y_train_res)
+y_pred_svm = svm_clf.predict(X_test_scaled)
+print("\n=== SVM ===")
+print(classification_report(y_test, y_pred_svm))
+
+# Decision Tree
+dt_clf = DecisionTreeClassifier(random_state=42, class_weight='balanced')
+dt_clf.fit(X_train_res, y_train_res)
+y_pred_dt = dt_clf.predict(X_test_scaled)
+print("\n=== Decision Tree ===")
+print(classification_report(y_test, y_pred_dt))
